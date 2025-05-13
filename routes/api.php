@@ -5,7 +5,7 @@ use App\Http\Controllers\AsociadoController;
 use App\Http\Controllers\PagoController;
 use App\Http\Controllers\ParticipacionController;
 use App\Http\Controllers\PrestamoController;
-use App\Http\Controllers\AuthController; // Import the AuthController
+use App\Http\Controllers\AuthController; // Importa el AuthController
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -19,85 +19,79 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-/* Ruta protegida para obtener el usuario autenticado (si usas Sanctum/Passport)
-Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-    return $request->user();
-});*/
-
-
-// --- Authentication Routes ---
-// These routes are typically not protected by JWT middleware initially
+// --- Rutas de Autenticación ---
+// Estas rutas generalmente no están protegidas inicialmente por el middleware JWT.
 Route::group([
-    'middleware' => 'api', // Already applied by the api.php group, but good for clarity
-    'prefix' => 'auth' // Optional: group under /api/auth
+    'middleware' => 'api', // Ya aplicado por el grupo api.php, pero bueno para mayor claridad
+    'prefix' => 'auth' // Opcional: agrupa las rutas bajo /api/auth
 ], function ($router) {
+    // Ruta para registrar un nuevo usuario
+    // POST: /api/auth/register
+    // Body esperado: name, email, password, password_confirmation
+    Route::post('register', [AuthController::class, 'register']);
+
+    // Ruta para iniciar sesión y obtener el token JWT
+    // POST: /api/auth/login
+    // Body esperado: email, password
     Route::post('login', [AuthController::class, 'login']);
-    Route::post('register', [AuthController::class, 'register']); // Add the registration route
 
-    // These routes require a valid JWT to access
+    // Estas rutas requieren un JWT válido para acceder
     Route::middleware('auth:api')->group(function () {
+        // Ruta para cerrar sesión (invalidar el token)
+        // POST: /api/auth/logout
+        // Requiere: Header de Autorización con el Token Bearer
         Route::post('logout', [AuthController::class, 'logout']);
-        Route::post('refresh', [AuthController::class, 'refresh']);
-        Route::post('me', [AuthController::class, 'me']); // Using POST is common for /me with JWT
 
-        // --- Rutas RESTful para los Recursos usando apiResource (Ahora protegidas) ---
+        // Ruta para refrescar un token JWT existente
+        // POST: /api/auth/refresh
+        // Requiere: Header de Autorización con el Token Bearer
+        Route::post('refresh', [AuthController::class, 'refresh']);
+
+        // Ruta para obtener los detalles del usuario autenticado
+        // POST: /api/auth/me
+        // Requiere: Header de Autorización con el Token Bearer
+        Route::post('me', [AuthController::class, 'me']);
+
+        // --- Rutas RESTful para los Recursos (CRUD) ---
+        // Estas rutas ahora están protegidas y requieren un token JWT.
 
         // Define las rutas estándar CRUD para Actividades:
+        // GET    /api/auth/actividades           (index)
+        // POST   /api/auth/actividades           (store)
+        // GET    /api/auth/actividades/{id}      (show)
+        // PUT    /api/auth/actividades/{id}      (update)
+        // DELETE /api/auth/actividades/{id}      (destroy)
+        // Requieren: Header de Autorización con el Token Bearer
         Route::apiResource('actividades', ActividadController::class);
 
         // Define las rutas estándar CRUD para Asociados
+        // GET    /api/auth/asociados
+        // POST   /api/auth/asociados
+        // ... y así sucesivamente para show, update, destroy
+        // Requieren: Header de Autorización con el Token Bearer
         Route::apiResource('asociados', AsociadoController::class);
 
         // Define las rutas estándar CRUD para Pagos
+        // Requieren: Header de Autorización con el Token Bearer
         Route::apiResource('pagos', PagoController::class);
 
         // Define las rutas estándar CRUD para Participaciones
+        // Requieren: Header de Autorización con el Token Bearer
         Route::apiResource('participaciones', ParticipacionController::class);
 
         // Define las rutas estándar CRUD para Prestamos
+        // Requieren: Header de Autorización con el Token Bearer
         Route::apiResource('prestamos', PrestamoController::class);
 
         // --- Rutas Personalizadas Protegidas (Si las necesitas) ---
         // Si necesitas rutas adicionales dentro del grupo protegido:
         // Route::get('/prestamos/{prestamo}/calcular-cuota', [PrestamoController::class, 'calcularCuota']);
-
     });
 });
 
-
-// --- Rutas RESTful para los Recursos usando apiResource (Las anteriores están comentadas/movidas) ---
-
-// Define las rutas estándar CRUD para Actividades:
-// GET /api/actividades -> ActividadController@index
-// POST /api/actividades -> ActividadController@store
-// GET /api/actividades/{actividad} -> ActividadController@show
-// PUT/PATCH /api/actividades/{actividad} -> ActividadController@update
-// DELETE /api/actividades/{actividad} -> ActividadController@destroy
-
-// Las siguientes rutas apiResource originales están ahora MOVidas dentro del grupo 'auth:api' para protección:
-/*
-Route::apiResource('actividades', ActividadController::class);
-Route::apiResource('asociados', AsociadoController::class);
-Route::apiResource('pagos', PagoController::class);
-Route::apiResource('participaciones', ParticipacionController::class);
-Route::apiResource('prestamos', PrestamoController::class);
-*/
-
-
 // --- Rutas Personalizadas (Si las necesitas) que NO REQUIERAN autenticación ---
-// Si necesitas rutas que sean públicas y no requieran autenticación, definelas aquí afuera.
+// Si necesitas rutas que sean públicas y no requieran autenticación, defínelas aquí afuera.
 // Por ejemplo:
 // Route::get('/public/data', [SomeController::class, 'publicMethod']);
 
-
-// --- Rutas Antiguas (Comentadas o Eliminadas) ---
-/*
-// Actividades routes (Reemplazadas por apiResource)
-// Route::get('listarActividades', [ActividadController::class, 'index'])->name('listar.actividades');
-// Route::get('crearActividad', [ActividadController::class, 'create'])->name('crear.actividad'); // Debe ser POST a /actividades
-// Route::get('listarActivides', [ActividadController::class, 'getActivides'])->name('mostrar.actividades'); // Método inexistente/Redundante
-// Route::put('actualizarActividad', [ActividadController::class, 'update'])->name('actualizar.actividad'); // Falta ID
-// Route::delete('eliminarActividad', [ActividadController::class, 'destroy'])->name('eliminar.actividad'); // Falta ID
-
-// ... (comentar o eliminar las definiciones antiguas para otros controladores también) ...
-*/
+?>

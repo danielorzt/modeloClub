@@ -35,9 +35,15 @@ return [
     |
     */
 
+    // config/auth.php
     'guards' => [
         'web' => [
             'driver' => 'session',
+            'provider' => 'users',
+        ],
+
+        'api' => [ // <--- ESTE ES EL IMPORTANTE
+            'driver' => 'jwt', // Asegúrate que el driver sea 'jwt'
             'provider' => 'users',
         ],
     ],

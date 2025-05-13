@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
+// use Illuminate\Contracts\Auth\MustVerifyEmail; // Descomenta si necesitas verificación de email
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Tymon\JWTAuth\Contracts\JWTSubject; // Import the JWTSubject interface
+// Importa la interfaz JWTSubject desde el namespace correcto del paquete actual
+use PHPOpenSourceSaver\JWTAuth\Contracts\JWTSubject;
 
-class User extends Authenticatable implements JWTSubject // Implement the interface
+class User extends Authenticatable implements JWTSubject // Implementa la interfaz
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable;
@@ -16,7 +17,7 @@ class User extends Authenticatable implements JWTSubject // Implement the interf
     /**
      * The attributes that are mass assignable.
      *
-     * @var list<string>
+     * @var array<int, string>
      */
     protected $fillable = [
         'name',
@@ -27,7 +28,7 @@ class User extends Authenticatable implements JWTSubject // Implement the interf
     /**
      * The attributes that should be hidden for serialization.
      *
-     * @var list<string>
+     * @var array<int, string>
      */
     protected $hidden = [
         'password',
@@ -43,7 +44,7 @@ class User extends Authenticatable implements JWTSubject // Implement the interf
     {
         return [
             'email_verified_at' => 'datetime',
-            'password' => 'hashed',
+            'password' => 'hashed', // Laravel hashea automáticamente las contraseñas
         ];
     }
 
@@ -54,7 +55,7 @@ class User extends Authenticatable implements JWTSubject // Implement the interf
      */
     public function getJWTIdentifier()
     {
-        return $this->getKey(); // Typically the user's primary key (ID)
+        return $this->getKey(); // Devuelve la clave primaria del usuario (generalmente 'id')
     }
 
     /**
@@ -64,6 +65,6 @@ class User extends Authenticatable implements JWTSubject // Implement the interf
      */
     public function getJWTCustomClaims()
     {
-        return []; // You can add custom claims here if needed
+        return []; // Puedes añadir claims personalizados aquí si los necesitas
     }
 }

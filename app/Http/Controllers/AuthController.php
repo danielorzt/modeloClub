@@ -5,19 +5,29 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use App\Models\User; // Make sure to import your User model
-use Illuminate\Support\Facades\Hash; // Import Hash facade for registration
+use App\Models\User;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests; // Necesario para el helper middleware()
+use Illuminate\Foundation\Validation\ValidatesRequests; // Opcional, pero buena práctica
 
 class AuthController extends Controller
 {
+    // Puedes usar estos traits si tu Controller base no los tiene,
+    // aunque en Laravel 11+ el Controller base suele ser mínimo.
+    // use AuthorizesRequests, ValidatesRequests;
+
     /**
-     * Create a new AuthController instance.
+     * Define el middleware para este controlador.
+     * Este método es la forma moderna de registrar middleware en controladores en Laravel 11+.
      *
-     * @return void
+     * @return array<int, \Illuminate\Routing\Controllers\Middleware|\Closure|string>
      */
-    public function __construct()
+    public static function middleware(): array
     {
-        $this->middleware('auth:api', ['except' => ['login', 'register']]);
+        return [
+            // Aplica el middleware 'auth:api' a todos los métodos excepto 'login' y 'register'.
+            new \Illuminate\Routing\Controllers\Middleware('auth:api', except: ['login', 'register']),
+        ];
     }
 
     /**
@@ -29,7 +39,8 @@ class AuthController extends Controller
     {
         $credentials = $request->only('email', 'password');
 
-        if (! $token = Auth::attempt($credentials)) {
+        // Intenta autenticar usando el guard 'api' (configurado para jwt)
+        if (! $token = Auth::guard('api')->attempt($credentials)) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
@@ -57,30 +68,29 @@ class AuthController extends Controller
                 'password' => Hash::make($request->password),
             ]);
 
-            // Optionally log the user in after registration
-            $token = Auth::attempt($request->only('email', 'password'));
+            // Inicia sesión con el guard 'api' para obtener el token JWT
+            $token = Auth::guard('api')->attempt($request->only('email', 'password'));
 
             return response()->json([
                 'message' => 'User successfully registered',
                 'user' => $user,
-                'access_token' => $token, // Include token if auto-logging in
+                'access_token' => $token,
                 'token_type' => 'bearer',
-                'expires_in' => Auth::factory()->getTTL() * 60,
-            ], 201); // 201 Created status code
+                // Asegúrate que el guard 'api' esté configurado para JWT en config/auth.php
+                // y que JWTAuth pueda obtener el TTL a través de él.
+                'expires_in' => Auth::guard('api')->factory()->getTTL() * 60,
+            ], 201);
 
         } catch (\Exception $e) {
-            // Log the exception for debugging
             \Log::error('Error during user registration: ' . $e->getMessage(), ['exception' => $e]);
 
             return response()->json([
                 'success' => false,
                 'message' => 'Error during registration. Please try again.',
-                // You might not want to expose the exact error message in production
                 'error' => $e->getMessage(),
-            ], 500); // 500 Internal Server Error
+            ], 500);
         }
     }
-
 
     /**
      * Get the authenticated User.
@@ -89,7 +99,8 @@ class AuthController extends Controller
      */
     public function me()
     {
-        return response()->json(Auth::user());
+        // Obtiene el usuario autenticado a través del guard 'api'
+        return response()->json(Auth::guard('api')->user());
     }
 
     /**
@@ -99,7 +110,8 @@ class AuthController extends Controller
      */
     public function logout()
     {
-        Auth::logout();
+        // Cierra la sesión del guard 'api'
+        Auth::guard('api')->logout();
 
         return response()->json(['message' => 'Successfully logged out']);
     }
@@ -111,7 +123,8 @@ class AuthController extends Controller
      */
     public function refresh()
     {
-        return $this->respondWithToken(Auth::refresh());
+        // Refresca el token usando el guard 'api'
+        return $this->respondWithToken(Auth::guard('api')->refresh());
     }
 
     /**
@@ -126,7 +139,8 @@ class AuthController extends Controller
         return response()->json([
             'access_token' => $token,
             'token_type' => 'bearer',
-            'expires_in' => Auth::factory()->getTTL() * 60, // TTL in seconds
+            // Asegúrate que el guard 'api' esté configurado para JWT
+            'expires_in' => Auth::guard('api')->factory()->getTTL() * 60, // TTL en segundos
         ]);
     }
 }
