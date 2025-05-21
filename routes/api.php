@@ -85,6 +85,7 @@ Route::group([
 
         // --- Rutas Personalizadas Protegidas (Si las necesitas) ---
         // Si necesitas rutas adicionales dentro del grupo protegido:
+        Route::post('profile', [AuthController::class, 'userProfile']);
         // Route::get('/prestamos/{prestamo}/calcular-cuota', [PrestamoController::class, 'calcularCuota']);
     });
 });

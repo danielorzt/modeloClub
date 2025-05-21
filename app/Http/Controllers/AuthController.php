@@ -5,16 +5,17 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use App\Models\User;
+use App\Models\User; // Asegúrate de que la ruta a tu modelo User sea correcta
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Foundation\Auth\Access\AuthorizesRequests; // Necesario para el helper middleware()
-use Illuminate\Foundation\Validation\ValidatesRequests; // Opcional, pero buena práctica
+use Illuminate\Support\Facades\Log; // Para registrar errores
+// Si tu Controller base no usa estos traits y los necesitas para otras cosas, puedes añadirlos.
+// En Laravel 11+ el Controller base es mínimo.
+// use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+// use Illuminate\Foundation\Validation\ValidatesRequests;
 
 class AuthController extends Controller
 {
-    // Puedes usar estos traits si tu Controller base no los tiene,
-    // aunque en Laravel 11+ el Controller base suele ser mínimo.
-    // use AuthorizesRequests, ValidatesRequests;
+    // use AuthorizesRequests, ValidatesRequests; // Descomenta si los necesitas
 
     /**
      * Define el middleware para este controlador.
@@ -31,8 +32,9 @@ class AuthController extends Controller
     }
 
     /**
-     * Get a JWT via given credentials.
+     * Intenta iniciar sesión y devuelve un token JWT.
      *
+     * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function login(Request $request)
@@ -48,87 +50,118 @@ class AuthController extends Controller
     }
 
     /**
-     * Register a new user.
+     * Registra un nuevo usuario.
      *
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function register(Request $request)
     {
-        $request->validate([
+        // Validación de los datos de entrada
+        $validatedData = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8|confirmed',
+            'rol' => 'sometimes|string|max:50', // 'sometimes' hace el campo opcional en la petición
+            // Considera 'required' si siempre debe enviarse.
+            // Podrías usar una regla Enum para roles específicos: 'sometimes|in:admin,editor,usuario'
         ]);
 
         try {
             $user = User::create([
-                'name' => $request->name,
-                'email' => $request->email,
-                'password' => Hash::make($request->password),
+                'name' => $validatedData['name'],
+                'email' => $validatedData['email'],
+                'password' => Hash::make($validatedData['password']),
+                // Asigna el rol proporcionado o un valor por defecto si no se envía
+                'rol' => $request->input('rol', 'usuario'), // Usamos input() para poder dar un default
             ]);
 
-            // Inicia sesión con el guard 'api' para obtener el token JWT
-            $token = Auth::guard('api')->attempt($request->only('email', 'password'));
+            // Opcionalmente, inicia sesión con el guard 'api' para obtener el token JWT inmediatamente
+            // LÍNEA CORREGIDA:
+            $token = Auth::guard('api')->attempt(['email' => $validatedData['email'], 'password' => $request->password]);
 
             return response()->json([
                 'message' => 'User successfully registered',
-                'user' => $user,
+                'user' => $user, // El objeto $user ya incluirá el rol
                 'access_token' => $token,
                 'token_type' => 'bearer',
-                // Asegúrate que el guard 'api' esté configurado para JWT en config/auth.php
-                // y que JWTAuth pueda obtener el TTL a través de él.
                 'expires_in' => Auth::guard('api')->factory()->getTTL() * 60,
-            ], 201);
+            ], 201); // 201 Created status code
 
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            // Esto es por si quieres manejar la excepción de validación explícitamente aquí,
+            // aunque Laravel normalmente lo hace automáticamente.
+            return response()->json(['errors' => $e->errors()], 422);
         } catch (\Exception $e) {
-            \Log::error('Error during user registration: ' . $e->getMessage(), ['exception' => $e]);
+            Log::error('Error during user registration: ' . $e->getMessage(), ['exception' => $e]);
 
             return response()->json([
                 'success' => false,
                 'message' => 'Error during registration. Please try again.',
-                'error' => $e->getMessage(),
-            ], 500);
+                // No expongas $e->getMessage() directamente en producción por seguridad.
+                // 'error_details' => $e->getMessage(), // Solo para depuración
+            ], 500); // 500 Internal Server Error
         }
     }
 
     /**
-     * Get the authenticated User.
+     * Obtiene los datos del usuario autenticado (incluyendo el rol).
+     * Este método es el estándar y el que probablemente quieras usar.
      *
      * @return \Illuminate\Http\JsonResponse
      */
     public function me()
     {
-        // Obtiene el usuario autenticado a través del guard 'api'
-        return response()->json(Auth::guard('api')->user());
+        $user = Auth::guard('api')->user();
+
+        // El modelo User ya debería incluir el campo 'rol'
+        // si está en $fillable y existe en la base de datos.
+        // La respuesta automática de Laravel al convertir el modelo a JSON lo incluirá.
+        return response()->json($user);
     }
 
     /**
-     * Log the user out (Invalidate the token).
+     * Alternativa: Obtiene el perfil del usuario autenticado (incluyendo rol).
+     * Puedes usar este si prefieres un nombre de endpoint diferente como '/profile'.
+     * Funcionalmente es similar a me() si solo devuelves el usuario.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function userProfile()
+    {
+        $user = Auth::guard('api')->user();
+
+        // Simplemente devolvemos el objeto usuario.
+        // Si el campo 'rol' está en la tabla users y es fillable en el modelo User,
+        // se incluirá automáticamente.
+        return response()->json($user);
+    }
+
+    /**
+     * Cierra la sesión del usuario (Invalida el token).
      *
      * @return \Illuminate\Http\JsonResponse
      */
     public function logout()
     {
-        // Cierra la sesión del guard 'api'
-        Auth::guard('api')->logout();
+        Auth::guard('api')->logout(); // Invalida el token actual
 
         return response()->json(['message' => 'Successfully logged out']);
     }
 
     /**
-     * Refresh a token.
+     * Refresca un token.
+     * El token antiguo se invalida (si el blacklist está habilitado).
      *
      * @return \Illuminate\Http\JsonResponse
      */
     public function refresh()
     {
-        // Refresca el token usando el guard 'api'
         return $this->respondWithToken(Auth::guard('api')->refresh());
     }
 
     /**
-     * Get the token array structure.
+     * Obtiene la estructura del array del token.
      *
      * @param  string $token
      *
@@ -139,7 +172,6 @@ class AuthController extends Controller
         return response()->json([
             'access_token' => $token,
             'token_type' => 'bearer',
-            // Asegúrate que el guard 'api' esté configurado para JWT
             'expires_in' => Auth::guard('api')->factory()->getTTL() * 60, // TTL en segundos
         ]);
     }
