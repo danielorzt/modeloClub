@@ -254,3 +254,6 @@ Route::group(
         Route::get('/', [HomeController::class, 'index'])->name('home'); //
     }
 );
+
+
+[![RICKROLL](https://markdown-videos-api.jorgenkh.no/url?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DdQw4w9WgXcQ)](https://www.youtube.com/watch?v=dQw4w9WgXcQ)
